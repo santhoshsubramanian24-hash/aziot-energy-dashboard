@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: aziot-energy-dashboard
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: TUYA_CLIENT_ID
+        value: yganpgxmqnw4uqhcgk55
+      - key: TUYA_CLIENT_SECRET
+        sync: false
+      - key: TUYA_DEVICE_ID
+        value: d742607eadedc5fa30bwcz
+      - key: TUYA_REGION
+        value: in
+      - key: FLAT_RATE_PER_UNIT
+        value: "7.50"
+      - key: CURRENCY_SYMBOL
+        value: "₹"
+      - key: BILLING_CYCLE_START_DAY
+        value: "1"

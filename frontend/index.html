@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AZIOT Smart MCB — Energy & Custom Bill Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <!-- Chart.js for responsive energy graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+
+  <!-- Top Header Navigation -->
+  <header class="top-nav">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <h1>AZIOT Smart MCB</h1>
+        <p class="subtitle">Custom Date-Range Energy & Bill Analyzer</p>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Bar -->
+    <div class="live-telemetry" id="liveTelemetry">
+      <div class="telemetry-pill">
+        <span class="dot" id="liveDot"></span>
+        <span id="liveStatusText">Checking MCB...</span>
+      </div>
+      <div class="telemetry-stat">
+        <span class="stat-label">Voltage</span>
+        <span class="stat-val" id="liveVoltage">-- V</span>
+      </div>
+      <div class="telemetry-stat">
+        <span class="stat-label">Current</span>
+        <span class="stat-val" id="liveCurrent">-- A</span>
+      </div>
+      <div class="telemetry-stat highlight">
+        <span class="stat-label">Live Power</span>
+        <span class="stat-val" id="livePower">-- W</span>
+      </div>
+      <div class="telemetry-stat">
+        <span class="stat-label">Cumulative</span>
+        <span class="stat-val" id="liveCumulative">-- kWh</span>
+      </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="nav-actions">
+      <button class="btn btn-secondary" id="btnSync" onclick="triggerSync()">
+        <span class="icon">🔄</span> Sync Cloud
+      </button>
+      <button class="btn btn-primary" onclick="openSettingsModal()">
+        <span class="icon">⚙️</span> Settings
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Date Range & Billing Selector Card -->
+    <section class="card date-control-card">
+      <div class="card-header">
+        <h2>📅 Select Date Range</h2>
+        <div class="quick-presets">
+          <button class="pill-btn active" onclick="setPreset('this-cycle')">This Bill Cycle</button>
+          <button class="pill-btn" onclick="setPreset('last-cycle')">Last Bill Cycle</button>
+          <button class="pill-btn" onclick="setPreset('last-7')">Last 7 Days</button>
+          <button class="pill-btn" onclick="setPreset('last-30')">Last 30 Days</button>
+          <button class="pill-btn" onclick="setPreset('this-month')">This Month</button>
+          <button class="pill-btn" onclick="setPreset('last-month')">Last Month</button>
+        </div>
+      </div>
+
+      <div class="date-picker-row">
+        <div class="input-group">
+          <label for="startDate">From Date</label>
+          <input type="date" id="startDate">
+        </div>
+        <div class="date-arrow">➔</div>
+        <div class="input-group">
+          <label for="endDate">To Date</label>
+          <input type="date" id="endDate">
+        </div>
+        <button class="btn btn-accent" onclick="loadEnergyData()">
+          ⚡ Calculate Consumption
+        </button>
+        <button class="btn btn-outline" onclick="openManualModal()">
+          + Add Manual Reading
+        </button>
+      </div>
+    </section>
+
+    <!-- Summary KPI Cards -->
+    <section class="kpi-grid">
+      <div class="kpi-card accent-cyan">
+        <div class="kpi-icon">🔋</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Total Units Consumed</span>
+          <div class="kpi-value-group">
+            <span class="kpi-value" id="kpiTotalUnits">0.00</span>
+            <span class="kpi-unit">kWh</span>
+          </div>
+          <span class="kpi-sub" id="kpiDaysLabel">For 0 days</span>
+        </div>
+      </div>
+
+      <div class="kpi-card accent-emerald">
+        <div class="kpi-icon">💰</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Estimated Electricity Bill</span>
+          <div class="kpi-value-group">
+            <span class="kpi-currency" id="kpiCurrency">₹</span>
+            <span class="kpi-value" id="kpiTotalCost">0.00</span>
+          </div>
+          <span class="kpi-sub" id="kpiRateLabel">Rate: ₹7.50 / unit</span>
+        </div>
+      </div>
+
+      <div class="kpi-card accent-purple">
+        <div class="kpi-icon">📈</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Daily Average</span>
+          <div class="kpi-value-group">
+            <span class="kpi-value" id="kpiAvgUnits">0.00</span>
+            <span class="kpi-unit">kWh / day</span>
+          </div>
+          <span class="kpi-sub" id="kpiAvgCost">~₹0.00 / day</span>
+        </div>
+      </div>
+
+      <div class="kpi-card accent-amber">
+        <div class="kpi-icon">🔥</div>
+        <div class="kpi-content">
+          <span class="kpi-label">Peak Usage Day</span>
+          <div class="kpi-value-group">
+            <span class="kpi-value" id="kpiPeakUnits">0.00</span>
+            <span class="kpi-unit">kWh</span>
+          </div>
+          <span class="kpi-sub" id="kpiPeakDate">No peak recorded</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Visual Chart Section -->
+    <section class="card chart-card">
+      <div class="chart-header">
+        <div>
+          <h2>📊 Daily Consumption Trend</h2>
+          <p class="card-subtitle">Daily electricity consumed in selected date window</p>
+        </div>
+        <div class="chart-toggle">
+          <button class="toggle-btn active" id="btnBarChart" onclick="setChartType('bar')">Bar Chart</button>
+          <button class="toggle-btn" id="btnLineChart" onclick="setChartType('line')">Cumulative Trend</button>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="energyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Detailed Table Section -->
+    <section class="card table-card">
+      <div class="table-header">
+        <div>
+          <h2>📋 Day-by-Day Detailed Log</h2>
+          <p class="card-subtitle">Exact daily breakdown for your custom date selection</p>
+        </div>
+        <button class="btn btn-outline" onclick="exportCSV()">
+          📥 Export CSV / Excel
+        </button>
+      </div>
+
+      <div class="table-responsive">
+        <table class="data-table" id="dataTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Day</th>
+              <th>Units Consumed (kWh)</th>
+              <th>Cost (₹)</th>
+              <th>Meter Cumulative (kWh)</th>
+              <th>Source / Notes</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            <tr>
+              <td colspan="6" class="empty-state">No records for this date range. Click "Calculate" or "Sync Cloud".</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay" id="settingsModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>⚙️ AZIOT / Tuya API & Bill Settings</h3>
+        <button class="modal-close" onclick="closeSettingsModal()">×</button>
+      </div>
+      <div class="modal-body">
+        
+        <div class="form-section">
+          <h4>Tuya Cloud Developer Credentials</h4>
+          <p class="form-help">From your free Tuya IoT Developer Project (<a href="https://iot.tuya.com" target="_blank">iot.tuya.com</a>)</p>
+          
+          <div class="form-group">
+            <label>Tuya Region / Data Center</label>
+            <select id="settingRegion">
+              <option value="in">India Data Center (openapi.tuyain.com)</option>
+              <option value="us">Western America (openapi.tuyaus.com)</option>
+              <option value="ue">Eastern America (openapi.tuyaue.com)</option>
+              <option value="eu">Central Europe (openapi.tuyaeu.com)</option>
+              <option value="we">Western Europe (openapi.tuyawe.com)</option>
+              <option value="cn">China Data Center (openapi.tuyacn.com)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>Access ID / Client ID</label>
+            <input type="text" id="settingClientId" placeholder="e.g. 3mkm8v...">
+          </div>
+
+          <div class="form-group">
+            <label>Access Secret / Client Secret</label>
+            <input type="password" id="settingClientSecret" placeholder="••••••••••••••••">
+          </div>
+
+          <div class="form-group">
+            <label>Smart MCB Device ID</label>
+            <input type="text" id="settingDeviceId" placeholder="e.g. bf817290...">
+          </div>
+
+          <button class="btn btn-secondary w-full" id="btnTestConn" onclick="testConnection()">
+            🔌 Test Connection & Fetch Device Status
+          </button>
+          <div id="testStatusMsg" class="test-status"></div>
+        </div>
+
+        <div class="form-section">
+          <h4>Electricity Tariff & Billing Cycle</h4>
+          <div class="form-row">
+            <div class="form-group">
+              <label>Billing Cycle Start Day</label>
+              <input type="number" id="settingCycleDay" min="1" max="28" value="1">
+              <span class="field-hint">Day of month your bill starts (e.g. 1st, 11th, 15th)</span>
+            </div>
+            <div class="form-group">
+              <label>Tariff Rate (₹ / Unit)</label>
+              <input type="number" id="settingRate" step="0.05" value="7.50">
+              <span class="field-hint">Cost per 1 kWh</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeSettingsModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveSettings()">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Entry Modal -->
+  <div class="modal-overlay" id="manualModal">
+    <div class="modal modal-sm">
+      <div class="modal-header">
+        <h3>✏️ Add / Edit Day Reading</h3>
+        <button class="modal-close" onclick="closeManualModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>Date</label>
+          <input type="date" id="manualDate">
+        </div>
+        <div class="form-group">
+          <label>Units Consumed (kWh)</label>
+          <input type="number" id="manualUnits" step="0.01" placeholder="e.g. 8.45">
+        </div>
+        <div class="form-group">
+          <label>Cumulative Meter Reading (Optional)</label>
+          <input type="number" id="manualCumulative" step="0.01" placeholder="e.g. 1420.50">
+        </div>
+        <div class="form-group">
+          <label>Notes</label>
+          <input type="text" id="manualNotes" placeholder="e.g. EB Bill reading / Manual meter check">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeManualModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveManualEntry()">Save Reading</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
+
